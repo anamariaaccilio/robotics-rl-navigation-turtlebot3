@@ -36,6 +36,7 @@ Tu workspace debe tener esta estructura base:
 
 ## 1. Comandos base que deben estar configurados
 
+
 Ejecuta esto una sola vez para asegurar que cada terminal nueva cargue ROS, tu workspace y el modelo Burger:
 
 ```bash
@@ -633,3 +634,96 @@ Actor-Critic:
 - Produce acciones continuas `v` y `w`.
 - No se corre junto con los nodos DQN.
 
+
+## Lógica:
+
+
+| Archivo | Qué hace |
+|---|---|
+| `networks.py` | La red neuronal: tronco compartido + cabeza **Actor** (predice media μ y desviación σ) + cabeza **Crítico** (predice V(s)). |
+| `environment.py` | El "mundo" del robot: construye el estado, ejecuta la acción y calcula la recompensa. |
+| `a2c_agent.py` | El algoritmo A2C: recolecta experiencia, calcula la ventaja con GAE y actualiza las redes. |
+| `utils.py` | Cuentas de apoyo: cálculo de GAE y normalizador del estado. |
+| `settings.py` | Todos los valores ajustables (velocidades, recompensas, hiperparámetros) en un solo lugar. |
+
+(Los otros archivos —`package.xml`, `setup.py`, `setup.cfg`, `__init__.py`— son la "plomería" estándar que ROS necesita para reconocer y ejecutar el paquete; no contienen lógica.)
+
+---
+
+## 6. Mi estado y mi acción
+
+**Estado (26 valores):** 24 sectores del láser + distancia a la meta + ángulo hacia la meta. Eso es todo lo que "ve" mi robot para decidir.
+
+**Acción (continua, 2 valores):**
+- velocidad lineal `v ∈ [0, 0.22]` m/s (límite cinemático real del burger),
+- velocidad angular `w ∈ [−ω_max, ω_max]` rad/s.
+
+El Actor no da un número fijo: produce una **distribución Gaussiana** (media y desviación) de la que se muestrea la acción. Esa incertidumbre es lo que le permite explorar.
+
+---
+
+## 7. Mi función de recompensa (= mi criterio de evaluación)
+
+Diseñé la recompensa para que premie exactamente lo que se evalúa:
+
+- **+** por **acercarse** a la meta (avance continuo).
+- **−** un pequeño castigo por cada paso → incentiva llegar **rápido**.
+- **−** castigo por **giros innecesarios** (proporcional a `|w|`).
+- **−** castigo por estar **cerca de obstáculos**.
+- **+200** si **llega** a la meta (fin del episodio con éxito).
+- **−150** si **choca** (fin del episodio con fracaso).
+
+---
+
+## 8. Cómo entrena (el ciclo de A2C)
+
+1. El Actor observa el estado y **decide** una acción `(v, w)`.
+2. El entorno **ejecuta** la acción (publica en `/cmd_vel`) y devuelve el nuevo estado, la recompensa y si terminó.
+3. Guardo la transición.
+4. Cada cierto número de pasos, **calculo la ventaja con GAE** y **actualizo** las dos redes con la loss de las 3 partes.
+5. Repito hasta que el robot aprende a llegar a la meta. Guardo los pesos en `a2c_sim.pth`.
+
+---
+
+## 9. Ajustes que hice para cumplir la consigna del laboratorio
+
+Sobre la base de A2C, hice 4 cambios que pedía explícitamente la práctica:
+
+1. **El Actor predice también σ** (la desviación estándar), no solo la media — sale directamente de la red a partir del estado.
+2. **Penalización de giros innecesarios** añadida a la recompensa.
+3. **Entorno Gymnasium**: defino `gym.spaces.Box` para la acción continua (`v ∈ [0, v_max]`, `w ∈ [−ω_max, ω_max]`) y para la observación.
+4. **Guardado de pesos** con el nombre pedido: `a2c_sim.pth`.
+
+---
+
+## 10. Cómo lo corro
+
+Con el paquete compilado, uso 2 terminales:
+
+```bash
+# Terminal 1 — Gazebo con obstáculos móviles
+export TURTLEBOT3_MODEL=burger
+ros2 launch turtlebot3_gazebo turtlebot3_dqn_stage4.launch.py
+
+# Terminal 2 — entrenar el agente A2C
+ros2 run turtlebot3_a2c train
+```
+
+Para probar un modelo ya entrenado (sin entrenar, usando la acción determinista):
+
+```bash
+ros2 run turtlebot3_a2c test a2c_sim
+```
+
+---
+
+## 11. Qué sigue
+
+- **Fase 2 — DAgger:** sobre el mismo entorno, afinar la política imitando a un experto.
+- **Fase 3 — Robot real:** cargar `a2c_sim.pth` en el TurtleBot3 físico y ejecutarlo, cuidando el *sim-to-real gap*.
+
+---
+
+## 12. Resumen de una línea
+
+> A2C = un Actor que decide acciones continuas + un Crítico que las evalúa con la ventaja, entrenados juntos en PyTorch para que mi robot aprenda a llegar a la meta rápido y sin chocar.
