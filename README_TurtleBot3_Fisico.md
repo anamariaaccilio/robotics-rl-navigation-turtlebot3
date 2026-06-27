@@ -1,284 +1,91 @@
-# Configuración y prueba en TurtleBot3 físico
+# Instrucciones de ejecución en terminal — TurtleBot A2C + DAgger
 
-Este documento resume los pasos para pasar del entorno de simulación en Gazebo al TurtleBot3 físico.
-
-La idea principal es:
-
-```text
-En simulación:
-Gazebo + agente DQN/A2C
-
-En robot físico:
-TurtleBot3 real + sensores reales + modelo entrenado + publicación en /cmd_vel
-```
-
-> Importante: en el robot físico primero se recomienda **probar inferencia**, no entrenar desde cero. El entrenamiento se hace en simulación y luego se carga el modelo entrenado en el robot/laptop.
+Proyecto: **Fase 1 — Actor-Critic / A2C + DAgger**  
+Workspace: `~/turtlebot3_ws`  
+Sistema de simulación: **ROS 2 Humble + Gazebo + TurtleBot3 Burger**  
+Sistema físico probado: **TurtleBot4 Lite con ROS 2 Jazzy**  
 
 ---
 
-## 1. Supuestos del entorno
+# 1. Comandos base
 
-Se asume que ya tienes en tu laptop:
-
-```text
-Ubuntu 22.04
-ROS 2 Humble
-Workspace: ~/turtlebot3_ws
-Modelo: TurtleBot3 Burger
-Paquete DQN funcionando en Gazebo
-Paquete Actor-Critic compilado en Gazebo
-```
-
-También se asume que el TurtleBot3 físico tiene:
-
-```text
-Raspberry Pi / SBC configurada
-OpenCR conectado
-LDS activo
-WiFi configurado
-ROS 2 instalado
-Paquete turtlebot3_bringup disponible
-```
-
----
-
-## 2. Variables que deben coincidir
-
-En la laptop y en la Raspberry Pi del robot, usar el mismo modelo:
+Antes de ejecutar cualquier nodo en la laptop, cargar ROS 2 Humble y el workspace:
 
 ```bash
-export TURTLEBOT3_MODEL=burger
-```
-
-Agregarlo al `.bashrc` si todavía no está:
-
-```bash
-echo 'export TURTLEBOT3_MODEL=burger' >> ~/.bashrc
-source ~/.bashrc
-```
-
-Si el profesor usa otro modelo, cambiar `burger` por:
-
-```text
-waffle
-waffle_pi
-```
-
----
-
-## 3. Configurar red entre laptop y robot
-
-La laptop y el TurtleBot3 deben estar en la misma red WiFi.
-
-En la laptop:
-
-```bash
-hostname -I
-```
-
-En la Raspberry Pi del robot:
-
-```bash
-hostname -I
-```
-
-Anotar ambas IPs:
-
-```text
-IP_LAPTOP=192.168.X.X
-IP_TURTLEBOT=192.168.X.Y
-```
-
-Verificar conexión desde la laptop:
-
-```bash
-ping IP_TURTLEBOT
-```
-
-Ejemplo:
-
-```bash
-ping 192.168.1.50
-```
-
-Si responde, hay comunicación.
-
----
-
-## 4. Configurar ROS_DOMAIN_ID
-
-En ROS 2, la laptop y el robot deben usar el mismo `ROS_DOMAIN_ID`.
-
-En la laptop:
-
-```bash
-echo 'export ROS_DOMAIN_ID=30' >> ~/.bashrc
-source ~/.bashrc
-```
-
-En la Raspberry Pi del robot:
-
-```bash
-echo 'export ROS_DOMAIN_ID=30' >> ~/.bashrc
-source ~/.bashrc
-```
-
-Puedes usar otro número, pero debe ser igual en ambos.
-
-Verificar:
-
-```bash
-echo $ROS_DOMAIN_ID
-```
-
-Debe salir:
-
-```text
-30
-```
-
----
-
-## 5. Entrar por SSH al TurtleBot3
-
-Desde la laptop:
-
-```bash
-ssh ubuntu@IP_TURTLEBOT
-```
-
-Ejemplo:
-
-```bash
-ssh ubuntu@192.168.1.50
-```
-
-Si pide contraseña, colocar la contraseña configurada en la Raspberry Pi.
-
----
-
-## 6. Levantar el robot físico con bringup
-
-Dentro de la terminal SSH del TurtleBot3:
-
-```bash
-export TURTLEBOT3_MODEL=burger
-ros2 launch turtlebot3_bringup robot.launch.py
-```
-
-Esta terminal debe quedarse abierta.
-
-Este comando inicia los nodos básicos del robot físico, incluyendo sensores, odometría y comunicación con OpenCR.
-
----
-
-## 7. Verificar que los tópicos existen
-
-Abrir una nueva terminal en la laptop y ejecutar:
-
-```bash
+cd ~/turtlebot3_ws
 source /opt/ros/humble/setup.bash
-source ~/turtlebot3_ws/install/setup.bash
+source install/setup.bash
 export TURTLEBOT3_MODEL=burger
-ros2 topic list
 ```
 
-Deben aparecer como mínimo:
+Para verificar que el paquete existe:
+
+```bash
+ros2 pkg list | grep a2c
+ros2 pkg executables turtlebot3_a2c
+```
+
+Los ejecutables correctos del paquete son:
 
 ```text
-/cmd_vel
-/odom
+turtlebot3_a2c run_a2c
+turtlebot3_a2c train_a2c
+turtlebot3_a2c run_dagger
+turtlebot3_a2c keyboard
+```
+
+No usar estos comandos antiguos porque ya no existen en el paquete actual:
+
+```bash
+ros2 run turtlebot3_a2c train
+ros2 run turtlebot3_a2c dagger
+ros2 run turtlebot3_a2c test a2c_sim
+ros2 run turtlebot3_a2c test a2c_dagger
+```
+
+---
+
+# 2. Ejecución en simulación
+
+## Terminal 1 — Abrir Gazebo
+
+```bash
+cd ~/turtlebot3_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+export TURTLEBOT3_MODEL=burger
+
+ros2 launch turtlebot3_gazebo turtlebot3_dqn_stage4.launch.py
+```
+
+Esperar a que abra Gazebo y aparezca el TurtleBot3 Burger.
+
+---
+
+## Terminal 2 — Verificar tópicos de simulación
+
+```bash
+cd ~/turtlebot3_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+export TURTLEBOT3_MODEL=burger
+
+ros2 topic list | grep -E "scan|odom|cmd"
+```
+
+Debe aparecer algo parecido a:
+
+```text
 /scan
-/tf
-/tf_static
+/odom
+/cmd_vel
 ```
 
-Los tres más importantes para el agente son:
-
-```text
-/scan     -> datos del láser LDS
-/odom     -> posición/orientación estimada
-/cmd_vel  -> velocidades enviadas al robot
-```
-
----
-
-## 8. Verificar datos del láser
-
-En la laptop:
+Para verificar que el robot se puede mover manualmente:
 
 ```bash
-ros2 topic echo /scan --once
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.05}, angular: {z: 0.0}}"
 ```
-
-Debe mostrar un mensaje tipo `sensor_msgs/msg/LaserScan`.
-
-Revisar que tenga campos como:
-
-```text
-angle_min
-angle_max
-range_min
-range_max
-ranges
-```
-
-Si `/scan` no aparece, el agente no podrá construir el estado.
-
----
-
-## 9. Verificar odometría
-
-En la laptop:
-
-```bash
-ros2 topic echo /odom --once
-```
-
-Debe mostrar un mensaje tipo `nav_msgs/msg/Odometry`.
-
-Si `/odom` no aparece, el agente no sabrá cómo cambia la posición/orientación del robot.
-
----
-
-## 10. Probar movimiento manual antes del agente
-
-Antes de correr cualquier modelo de aprendizaje, probar teleoperación.
-
-En una terminal de la laptop:
-
-```bash
-export TURTLEBOT3_MODEL=burger
-ros2 run turtlebot3_teleop teleop_keyboard
-```
-
-Usar las teclas:
-
-```text
-w -> avanzar
-x -> retroceder
-s -> detener
-a -> girar izquierda
-d -> girar derecha
-space -> freno
-CTRL+C -> salir
-```
-
-Si el robot responde correctamente, el tópico `/cmd_vel` está funcionando.
-
----
-
-## 11. Prueba segura de /cmd_vel
-
-Antes de correr el agente, hacer una prueba mínima de velocidad.
-
-En la laptop:
-
-```bash
-ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.03}, angular: {z: 0.0}}"
-```
-
-El robot debe avanzar muy poco.
 
 Para detenerlo:
 
@@ -286,353 +93,408 @@ Para detenerlo:
 ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.0}, angular: {z: 0.0}}"
 ```
 
-> Recomendación: hacer esta prueba en el piso, con espacio libre y con una persona lista para levantar o apagar el robot si se mueve mal.
-
 ---
 
-## 12. Ajuste importante para Actor-Critic físico
+# 3. Actor-Critic / A2C en simulación
 
-En simulación, el agente puede usar reset de Gazebo.
+## Opción A — Ejecutar A2C entrenado
 
-En físico, no existe:
-
-```text
-/reset_simulation
-/reset_world
-```
-
-Por eso, para el robot físico:
-
-```text
-No se usa Gazebo.
-No se usa reset_simulation.
-No se entrena desde cero al inicio.
-Se carga el modelo entrenado.
-Se hace inferencia.
-Se publica /cmd_vel.
-```
-
-El agente físico debe:
-
-```text
-1. Leer /scan.
-2. Leer /odom.
-3. Construir el mismo estado usado en simulación.
-4. Cargar el modelo .pt entrenado.
-5. Predecir acción continua [v, w].
-6. Limitar velocidades por seguridad.
-7. Publicar en /cmd_vel.
-8. Detenerse si detecta obstáculo muy cerca.
-```
-
----
-
-## 13. Límites de velocidad recomendados para primera prueba
-
-No usar al inicio los máximos de simulación.
-
-Para primera prueba física:
-
-```text
-linear_x máximo: 0.03 a 0.06 m/s
-angular_z máximo: 0.4 a 0.8 rad/s
-```
-
-Ejemplo recomendado:
-
-```python
-MAX_LINEAR = 0.05
-MAX_ANGULAR = 0.6
-```
-
-Cuando funcione de forma estable, recién aumentar poco a poco.
-
----
-
-## 14. Distancia mínima de seguridad
-
-El robot debe detenerse si el LDS detecta obstáculo muy cerca.
-
-Recomendado:
-
-```text
-STOP_DISTANCE = 0.18  # metros
-```
-
-Lógica esperada:
-
-```python
-if min_laser_distance < STOP_DISTANCE:
-    linear_x = 0.0
-    angular_z = 0.0
-```
-
-Esto evita que el robot choque fuerte durante la prueba real.
-
----
-
-## 15. Cargar modelo Actor-Critic entrenado
-
-El modelo entrenado desde simulación debería estar en una ruta parecida a:
+Con Gazebo abierto:
 
 ```bash
-~/turtlebot3_a2c_runs/a2c_continuous_turtlebot3.pt
+cd ~/turtlebot3_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+export TURTLEBOT3_MODEL=burger
+
+ros2 run turtlebot3_a2c run_a2c
 ```
 
-Verificar:
+Qué explicar durante la demo:
+
+> Este es el agente Actor-Critic ejecutando una política de acción continua. La red predice velocidad lineal y velocidad angular para navegar hacia la meta evitando obstáculos.
+
+---
+
+## Opción B — Entrenar A2C
+
+Con Gazebo abierto:
 
 ```bash
-ls ~/turtlebot3_a2c_runs/
+cd ~/turtlebot3_ws
+source /opt/ros/humble/setup.bash
+source instaall/setup.bash
+export TURTLEBOT3_MODEL=burger
+
+ros2 run turtlebot3_a2c train_a2c
 ```
 
-Debe aparecer:
+Qué observar:
 
 ```text
-a2c_continuous_turtlebot3.pt
+Episode / reward / success / collision
+L_actor / L_critic / entropy
 ```
 
-Copiar el modelo al workspace o carpeta de modelos:
+Modelo esperado al finalizar o guardar:
 
-```bash
-mkdir -p ~/turtlebot3_ws/models/actor_critic
-cp ~/turtlebot3_a2c_runs/a2c_continuous_turtlebot3.pt ~/turtlebot3_ws/models/actor_critic/
+```text
+~/turtlebot3_ws/a2c_models/a2c_sim.pth
 ```
 
 ---
 
-## 16. Ejecutar política entrenada en robot físico
+# 4. DAgger en simulación
 
-Este comando depende del nombre final del nodo de inferencia.
+## Terminal 1 — Gazebo
 
-Si el paquete tiene un nodo tipo `run_policy`, la ejecución sería:
+Debe seguir abierto:
+
+```bash
+ros2 launch turtlebot3_gazebo turtlebot3_dqn_stage4.launch.py
+```
+
+## Terminal 2 — Ejecutar DAgger
+
+```bash
+cd ~/turtlebot3_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+export TURTLEBOT3_MODEL=burger
+
+ros2 run turtlebot3_a2c run_dagger
+```
+
+Secuencia para la demo:
+
+```text
+1. Dejar que A2C pilotee en modo automático.
+2. Presionar i para intervenir como experto humano.
+3. Usar w, a, s, d para corregir la trayectoria.
+4. Presionar t para hacer fine-tuning con los pares capturados.
+5. Volver a modo automático y validar la mejora.
+6. Presionar q para guardar y salir.
+```
+
+Teclas esperadas:
+
+```text
+i  -> alternar intervención humana / modo automático
+w  -> avanzar
+a  -> girar izquierda
+d  -> girar derecha
+s  -> detener
+t  -> fine-tuning con datos DAgger
+q  -> guardar y salir
+```
+
+Modelo esperado después de DAgger:
+
+```text
+~/turtlebot3_ws/a2c_models/a2c_dagger.pth
+```
+
+---
+
+# 5. Mostrar modelos guardados
+
+```bash
+ls ~/turtlebot3_ws/a2c_models/
+```
+
+Debe mostrar, si ya fueron generados:
+
+```text
+a2c_sim.pth
+a2c_dagger.pth
+```
+
+---
+
+# 6. Ejecución en TurtleBot físico
+
+Importante: en físico no se usa Gazebo.  
+No ejecutar:
+
+```bash
+ros2 launch turtlebot3_gazebo turtlebot3_dqn_stage4.launch.py
+```
+
+En físico se usa el bringup del TurtleBot4.
+
+---
+
+## Terminal 1 — Conectarse al TurtleBot físico
+
+Desde la laptop:
+
+```bash
+ssh ubuntu@turtlebot4.local
+```
+
+Si no funciona por hostname:
+
+```bash
+ssh ubuntu@10.42.0.1
+```
+
+Dentro del TurtleBot:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+export ROS_DOMAIN_ID=4
+ros2 launch turtlebot4_bringup lite.launch.py
+```
+
+Dejar esta terminal abierta.
+
+Nota: si aparece error de `oakd`, corresponde a la cámara OAK-D. Para A2C/DAgger con LiDAR, odometría y velocidad, se puede ignorar inicialmente.
+
+---
+
+## Terminal 2 — Laptop: verificar comunicación con el robot
 
 ```bash
 source /opt/ros/humble/setup.bash
 source ~/turtlebot3_ws/install/setup.bash
-export TURTLEBOT3_MODEL=burger
-ros2 run turtlebot3_a2c run_policy --ros-args \
-  -p model_path:=$HOME/turtlebot3_ws/models/actor_critic/a2c_continuous_turtlebot3.pt \
-  -p real_robot:=true \
-  -p max_linear:=0.05 \
-  -p max_angular:=0.6 \
-  -p stop_distance:=0.18
+export ROS_DOMAIN_ID=4
+
+ros2 topic list | grep -E "scan|odom|cmd"
 ```
 
-Si todavía no existe `run_policy`, se debe crear un nodo separado para inferencia física. No conviene usar el nodo de entrenamiento directamente en el robot real.
-
----
-
-## 17. Orden recomendado de terminales para robot físico
-
-### Terminal 1: SSH al robot y bringup
-
-```bash
-ssh ubuntu@IP_TURTLEBOT
-export TURTLEBOT3_MODEL=burger
-ros2 launch turtlebot3_bringup robot.launch.py
-```
-
-Dejar abierta.
-
-### Terminal 2: verificar tópicos desde laptop
-
-```bash
-source /opt/ros/humble/setup.bash
-source ~/turtlebot3_ws/install/setup.bash
-ros2 topic list
-```
-
-Confirmar:
+Debe aparecer algo como:
 
 ```text
-/scan
-/odom
+/cmd_audio
+/cmd_lightring
 /cmd_vel
+/cmd_vel_unstamped
+/odom
+/scan
 ```
 
-### Terminal 3: prueba manual
-
-```bash
-export TURTLEBOT3_MODEL=burger
-ros2 run turtlebot3_teleop teleop_keyboard
-```
-
-Mover poquito y detener.
-
-### Terminal 4: correr política Actor-Critic entrenada
-
-```bash
-ros2 run turtlebot3_a2c run_policy --ros-args \
-  -p model_path:=$HOME/turtlebot3_ws/models/actor_critic/a2c_continuous_turtlebot3.pt \
-  -p real_robot:=true \
-  -p max_linear:=0.05 \
-  -p max_angular:=0.6 \
-  -p stop_distance:=0.18
-```
-
----
-
-## 18. Qué NO hacer en la primera prueba física
-
-No hacer esto al inicio:
-
-```text
-No entrenar desde cero en el robot físico.
-No usar velocidades máximas.
-No probar sobre una mesa.
-No correr el agente sin verificar /scan.
-No correr el agente sin verificar /odom.
-No correr el agente sin botón/freno de emergencia.
-No usar reset_simulation en físico.
-```
-
----
-
-## 19. Checklist antes de correr el agente
-
-Antes de ejecutar Actor-Critic en el robot físico, marcar:
-
-```text
-[ ] Laptop y robot en la misma red WiFi.
-[ ] Puedo hacer ping al robot.
-[ ] Puedo entrar por SSH.
-[ ] ROS_DOMAIN_ID es igual en laptop y robot.
-[ ] TURTLEBOT3_MODEL=burger en laptop y robot.
-[ ] Bringup corre sin error.
-[ ] /scan aparece en ros2 topic list.
-[ ] /odom aparece en ros2 topic list.
-[ ] /cmd_vel aparece en ros2 topic list.
-[ ] Teleop funciona.
-[ ] El robot puede frenar con space/s.
-[ ] El modelo .pt existe.
-[ ] Velocidades limitadas para prueba física.
-[ ] Hay espacio libre alrededor del robot.
-```
-
----
-
-## 20. Errores comunes
-
-### Error: no aparece `/scan`
-
-Revisar bringup:
-
-```bash
-ros2 launch turtlebot3_bringup robot.launch.py
-```
-
-Revisar conexión del LDS y OpenCR.
-
----
-
-### Error: no aparece `/odom`
-
-Revisar que OpenCR esté conectado y que el bringup no haya fallado.
-
----
-
-### Error: la laptop no ve tópicos del robot
-
-Verificar:
-
-```bash
-echo $ROS_DOMAIN_ID
-```
-
-Debe ser igual en laptop y Raspberry Pi.
-
-También verificar red:
-
-```bash
-ping IP_TURTLEBOT
-```
-
----
-
-### Error: el robot no se mueve con `/cmd_vel`
-
-Probar teleop:
-
-```bash
-ros2 run turtlebot3_teleop teleop_keyboard
-```
-
-Si teleop tampoco mueve el robot, el problema no es el agente; es bringup, OpenCR, batería, motores o comunicación.
-
----
-
-### Error: el robot se mueve muy agresivo
-
-Bajar límites:
-
-```text
-max_linear = 0.03
-max_angular = 0.4
-```
-
----
-
-## 21. Diferencia entre simulación y físico
-
-| Simulación | Robot físico |
-|---|---|
-| Usa Gazebo | No usa Gazebo |
-| Usa `/reset_simulation` | No hay reset automático |
-| Entrena muchos episodios | Primero solo inferencia |
-| El robot puede chocar sin daño | El choque puede dañar piezas |
-| Sensores ideales o simulados | Sensores con ruido real |
-| Velocidades pueden ser mayores | Velocidades bajas al inicio |
-
----
-
-## 22. Resumen rápido
-
-### En el robot
-
-```bash
-ssh ubuntu@IP_TURTLEBOT
-export TURTLEBOT3_MODEL=burger
-ros2 launch turtlebot3_bringup robot.launch.py
-```
-
-### En la laptop
-
-```bash
-source /opt/ros/humble/setup.bash
-source ~/turtlebot3_ws/install/setup.bash
-export TURTLEBOT3_MODEL=burger
-ros2 topic list
-```
-
-### Verificar sensores
+Verificar lectura del LiDAR y odometría:
 
 ```bash
 ros2 topic echo /scan --once
 ros2 topic echo /odom --once
 ```
 
-### Probar movimiento manual
+Si aparece:
 
-```bash
-ros2 run turtlebot3_teleop teleop_keyboard
+```text
+sequence size exceeds remaining buffer
 ```
 
-### Correr política entrenada
+es por la mezcla **Humble en laptop** y **Jazzy en robot**. Si los tópicos igual aparecen y `/scan` llega, la comunicación está parcialmente funcionando.
+
+---
+
+# 7. Prueba manual de movimiento físico
+
+Primero probar con `/cmd_vel_unstamped`:
 
 ```bash
-ros2 run turtlebot3_a2c run_policy --ros-args \
-  -p model_path:=$HOME/turtlebot3_ws/models/actor_critic/a2c_continuous_turtlebot3.pt \
-  -p real_robot:=true \
-  -p max_linear:=0.05 \
-  -p max_angular:=0.6 \
-  -p stop_distance:=0.18
+ros2 topic pub --once /cmd_vel_unstamped geometry_msgs/msg/Twist "{linear: {x: 0.03, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
+```
+
+Detener:
+
+```bash
+ros2 topic pub --once /cmd_vel_unstamped geometry_msgs/msg/Twist "{linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
+```
+
+Si no se mueve, revisar el tipo de `/cmd_vel`:
+
+```bash
+ros2 topic type /cmd_vel
+ros2 topic type /cmd_vel_unstamped
+ros2 topic info /cmd_vel
+ros2 topic info /cmd_vel_unstamped
+```
+
+Si `/cmd_vel` usa `geometry_msgs/msg/TwistStamped`, probar:
+
+```bash
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/TwistStamped "{header: {frame_id: 'base_link'}, twist: {linear: {x: 0.03, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}}"
+```
+
+Detener:
+
+```bash
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/TwistStamped "{header: {frame_id: 'base_link'}, twist: {linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}}"
 ```
 
 ---
 
-## 23. Referencias oficiales
+# 8. A2C en físico
 
-- ROBOTIS e-Manual: TurtleBot3 Bringup
-- ROBOTIS e-Manual: TurtleBot3 SBC Setup
-- ROBOTIS e-Manual: TurtleBot3 Basic Operation / Teleoperation
-- ROBOTIS e-Manual: LDS-01 Laser Distance Sensor
+Solo ejecutar si la prueba manual de movimiento ya funcionó.
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/turtlebot3_ws/install/setup.bash
+export ROS_DOMAIN_ID=4
+
+ros2 run turtlebot3_a2c run_a2c --ros-args -r /cmd_vel:=/cmd_vel_unstamped
+```
+
+---
+
+# 9. DAgger en físico
+
+Solo ejecutar si la prueba manual y A2C físico ya funcionaron.
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/turtlebot3_ws/install/setup.bash
+export ROS_DOMAIN_ID=4
+
+ros2 run turtlebot3_a2c run_dagger --ros-args -r /cmd_vel:=/cmd_vel_unstamped
+```
+
+---
+
+# 10. Comando de emergencia
+
+Tener siempre una terminal lista para detener el robot.
+
+Si se usa `/cmd_vel_unstamped`:
+
+```bash
+source /opt/ros/humble/setup.bash
+export ROS_DOMAIN_ID=4
+
+ros2 topic pub --once /cmd_vel_unstamped geometry_msgs/msg/Twist "{linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
+```
+
+Si se usa `/cmd_vel` con `TwistStamped`:
+
+```bash
+source /opt/ros/humble/setup.bash
+export ROS_DOMAIN_ID=4
+
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/TwistStamped "{header: {frame_id: 'base_link'}, twist: {linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}}"
+```
+
+---
+
+# 11. Problemas frecuentes
+
+## Error: `No executable found`
+
+Causa: se está usando un nombre antiguo de ejecutable.
+
+Incorrecto:
+
+```bash
+ros2 run turtlebot3_a2c train
+ros2 run turtlebot3_a2c dagger
+ros2 run turtlebot3_a2c test a2c_sim
+```
+
+Correcto:
+
+```bash
+ros2 run turtlebot3_a2c train_a2c
+ros2 run turtlebot3_a2c run_dagger
+ros2 run turtlebot3_a2c run_a2c
+```
+
+---
+
+## Error: `/reset_simulation no disponible`
+
+En simulación puede salir si Gazebo no está abierto o no terminó de cargar.
+
+Solución:
+
+```bash
+ros2 service list | grep reset
+```
+
+Si no aparece `/reset_simulation`, reiniciar Gazebo y esperar a que cargue.
+
+En físico es normal que no exista `/reset_simulation`. En ese caso, el código debe permitir modo físico sin reset automático.
+
+---
+
+## Mensaje: `sequence size exceeds remaining buffer`
+
+Aparece al comunicar laptop ROS 2 Humble con TurtleBot4 ROS 2 Jazzy. No necesariamente bloquea todo, pero indica incompatibilidad o advertencia de serialización DDS.
+
+Si afecta demasiado, la solución más estable es correr el cliente físico desde un entorno con:
+
+```text
+Ubuntu 24.04 + ROS 2 Jazzy
+```
+
+---
+
+## Mensaje: `Waiting for at least 1 matching subscription(s)...`
+
+Significa que se está publicando en un tópico sin ningún suscriptor.
+
+Revisar:
+
+```bash
+export ROS_DOMAIN_ID=4
+ros2 topic info /cmd_vel
+ros2 topic info /cmd_vel_unstamped
+```
+
+Usar el tópico que tenga `Subscription count: 1`.
+
+---
+
+# 12. Resumen rápido de demo
+
+## Simulación
+
+Terminal 1:
+
+```bash
+cd ~/turtlebot3_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+export TURTLEBOT3_MODEL=burger
+ros2 launch turtlebot3_gazebo turtlebot3_dqn_stage4.launch.py
+```
+
+Terminal 2 — A2C:
+
+```bash
+cd ~/turtlebot3_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 run turtlebot3_a2c run_a2c
+```
+
+Terminal 2 — DAgger:
+
+```bash
+cd ~/turtlebot3_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 run turtlebot3_a2c run_dagger
+```
+
+## Físico
+
+Robot:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+export ROS_DOMAIN_ID=4
+ros2 launch turtlebot4_bringup lite.launch.py
+```
+
+Laptop:
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/turtlebot3_ws/install/setup.bash
+export ROS_DOMAIN_ID=4
+ros2 run turtlebot3_a2c run_a2c --ros-args -r /cmd_vel:=/cmd_vel_unstamped
+```
+
