@@ -100,6 +100,10 @@ source /opt/ros/humble/setup.bash
 source install/setup.bash
 export TURTLEBOT3_MODEL=burger
 ros2 run turtlebot3_a2c run_dagger 2>&1 | tee ~/turtlebot3_ws/reporte/dagger_log.txt
+
+
+ros2 run turtlebot3_a2c run_dagger 2>&1 | tee ~/turtlebot3_ws/reporte/dagger_log.txt
+
 ```
 
 **Controles DAgger:**
